@@ -2,7 +2,7 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from .models import Activity, Team, Workout
+from .models import Activity, Team, Workout, WorkoutSuggestion
 
 
 class TrackerApiTests(TestCase):
@@ -97,3 +97,30 @@ class TrackerApiTests(TestCase):
         response = self.client.get('/api/workouts/')
         self.assertEqual(response.status_code, 200)
         self.assertGreaterEqual(len(response.json()), 1)
+
+    def test_workout_suggestion_creation_and_management(self):
+        workout = Workout.objects.create(
+            name='Morning Run',
+            description='Light cardio workout.',
+            difficulty=Workout.LOW,
+            recommended_activity=Activity.RUNNING,
+            duration_minutes=30,
+        )
+        
+        # Create a suggestion
+        from datetime import date
+        payload = {
+            'workout_id': workout.id, 
+            'reason': 'Test suggestion',
+            'suggested_date': date.today().isoformat()
+        }
+        response = self.client.post('/api/workout-suggestions/', payload, format='json')
+        self.assertEqual(response.status_code, 201)
+        
+        suggestion_id = response.json()['id']
+        
+        # Verify suggestion was created
+        response = self.client.get(f'/api/workout-suggestions/{suggestion_id}/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'pending')
+        self.assertEqual(response.json()['user'], self.user.id)

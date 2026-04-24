@@ -4,7 +4,7 @@ from rest_framework import permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .models import Activity, Profile, Team, Workout
+from .models import Activity, Profile, Team, Workout, WorkoutSuggestion
 from .serializers import (
     ActivitySerializer,
     LeaderboardEntrySerializer,
@@ -13,6 +13,7 @@ from .serializers import (
     TeamSerializer,
     UserSerializer,
     WorkoutSerializer,
+    WorkoutSuggestionSerializer,
 )
 
 
@@ -79,6 +80,47 @@ class WorkoutViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Workout.objects.all()
     serializer_class = WorkoutSerializer
     permission_classes = [permissions.AllowAny]
+
+
+class WorkoutSuggestionViewSet(viewsets.ModelViewSet):
+    queryset = WorkoutSuggestion.objects.select_related('user', 'workout').all()
+    serializer_class = WorkoutSuggestionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        if self.request.user.is_authenticated and not self.request.user.is_staff:
+            return queryset.filter(user=self.request.user)
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def get_suggestions(self, request):
+        """Generate personalized workout suggestions for the current user."""
+        user = request.user
+        suggested_workouts = Workout.suggest_for_user(user)
+        
+        suggestions = []
+        for workout in suggested_workouts:
+            # Check if suggestion already exists for today
+            existing = WorkoutSuggestion.objects.filter(
+                user=user,
+                workout=workout,
+                suggested_date=timezone.now().date(),
+                status=WorkoutSuggestion.PENDING
+            ).exists()
+            
+            if not existing:
+                suggestion = WorkoutSuggestion.objects.create(
+                    user=user,
+                    workout=workout,
+                    reason=f"Personalized suggestion based on your activity patterns"
+                )
+                suggestions.append(suggestion)
+        
+        serializer = self.get_serializer(suggestions, many=True)
+        return Response(serializer.data)
 
 
 class LeaderboardView(APIView):

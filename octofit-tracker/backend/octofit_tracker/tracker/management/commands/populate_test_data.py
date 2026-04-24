@@ -1,7 +1,8 @@
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
+from datetime import date, timedelta
 
-from tracker.models import Activity, Profile, Team, Workout
+from tracker.models import Activity, Team, Workout, WorkoutSuggestion
 
 
 class Command(BaseCommand):
@@ -10,154 +11,179 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         User = get_user_model()
 
-        # Clear existing sample data so object IDs stay consistent with Django's integer PK expectations.
-        sample_usernames = ['student1', 'student2', 'coach']
+        # Clear existing sample data
+        sample_usernames = ['student1', 'student2', 'coach', 'tony_stark', 'steve_rogers', 'bruce_wayne', 'clark_kent']
         User.objects.filter(username__in=sample_usernames).delete()
-        Team.objects.filter(name__in=['Team Octo', 'Team Hydra']).delete()
+        Team.objects.filter(name__in=['Team Octo', 'Team Hydra', 'Marvel', 'DC']).delete()
         Activity.objects.all().delete()
-        Workout.objects.filter(name__in=['Full Body Circuit', 'Morning Cardio']).delete()
+        Workout.objects.filter(name__in=['Full Body Circuit', 'Morning Cardio', 'Morning Cardio Blast', 'Strength Training Basics', 'Relaxing Yoga Flow', 'Evening Walk']).delete()
+        WorkoutSuggestion.objects.all().delete()
 
+        # Create teams
+        self.stdout.write('Creating teams...')
+        marvel = Team.objects.create(name='Marvel', description='Superhero team from Marvel Comics')
+        dc = Team.objects.create(name='DC', description='Superhero team from DC Comics')
+        self.stdout.write(f'Created {Team.objects.count()} teams.')
+
+        # Create users
+        self.stdout.write('Creating users...')
         sample_users = [
             {
-                'username': 'student1',
-                'email': 'student1@example.com',
-                'password': 'pass1234',
-                'display_name': 'Student One',
-                'bio': 'Loves running and team challenges.',
+                'username': 'tony_stark',
+                'email': 'tony@stark.com',
+                'password': 'password123',
+                'first_name': 'Tony',
+                'last_name': 'Stark',
             },
             {
-                'username': 'student2',
-                'email': 'student2@example.com',
-                'password': 'pass1234',
-                'display_name': 'Student Two',
-                'bio': 'Enjoys yoga and keeping active.',
+                'username': 'steve_rogers',
+                'email': 'steve@rogers.com',
+                'password': 'password123',
+                'first_name': 'Steve',
+                'last_name': 'Rogers',
             },
             {
-                'username': 'coach',
-                'email': 'coach@example.com',
-                'password': 'pass1234',
-                'display_name': 'Coach Cat',
-                'bio': 'Supports students and tracks team progress.',
+                'username': 'bruce_wayne',
+                'email': 'bruce@wayne.com',
+                'password': 'password123',
+                'first_name': 'Bruce',
+                'last_name': 'Wayne',
+            },
+            {
+                'username': 'clark_kent',
+                'email': 'clark@kent.com',
+                'password': 'password123',
+                'first_name': 'Clark',
+                'last_name': 'Kent',
             },
         ]
 
         users = {}
         for data in sample_users:
-            user, created = User.objects.get_or_create(
+            user = User.objects.create_user(
                 username=data['username'],
-                defaults={'email': data['email']},
+                email=data['email'],
+                password=data['password'],
+                first_name=data['first_name'],
+                last_name=data['last_name']
             )
-            user.set_password(data['password'])
-            user.save()
-            
-            # Ensure profile exists
-            profile, created_profile = Profile.objects.get_or_create(user=user)
-            if created_profile:
-                profile.display_name = data['display_name']
-                profile.bio = data['bio']
-                profile.save()
             users[data['username']] = user
+        self.stdout.write(f'Created {User.objects.count()} users.')
 
-        teams = [
-            {
-                'name': 'Team Octo',
-                'description': 'The first student fitness team.',
-                'captain_username': 'coach',
-            },
-            {
-                'name': 'Team Hydra',
-                'description': 'A competitive group focused on wellness.',
-                'captain_username': 'student1',
-            },
-        ]
+        # Set team relationships
+        self.stdout.write('Setting team relationships...')
+        # Create profiles for users and assign to teams
+        from tracker.models import Profile
+        
+        # Marvel team
+        profile, created = Profile.objects.get_or_create(user=users['tony_stark'], defaults={'team': marvel})
+        if not created:
+            profile.team = marvel
+            profile.save()
+            
+        profile, created = Profile.objects.get_or_create(user=users['steve_rogers'], defaults={'team': marvel})
+        if not created:
+            profile.team = marvel
+            profile.save()
+        
+        # DC team  
+        profile, created = Profile.objects.get_or_create(user=users['bruce_wayne'], defaults={'team': dc})
+        if not created:
+            profile.team = dc
+            profile.save()
+            
+        profile, created = Profile.objects.get_or_create(user=users['clark_kent'], defaults={'team': dc})
+        if not created:
+            profile.team = dc
+            profile.save()
+        
+        self.stdout.write('Team relationships set.')
 
-        team_objects = {}
-        for data in teams:
-            team_data = {
-                'description': data['description'],
-                'captain': users[data['captain_username']],
-            }
-            team, _ = Team.objects.get_or_create(
-                name=data['name'],
-                defaults=team_data,
-            )
-            team_objects[data['name']] = team
-
-        users['student1'].profile.team = team_objects['Team Octo']
-        users['student1'].profile.save()
-
-        users['student2'].profile.team = team_objects['Team Hydra']
-        users['student2'].profile.save()
-
-        activities = [
-            {
-                'user': users['student1'],
-                'activity_type': Activity.RUNNING,
-                'duration_minutes': 28,
-                'distance_km': 4.4,
-                'calories_burned': 320,
-                'notes': 'Morning run around the track.',
-            },
-            {
-                'user': users['student1'],
-                'activity_type': Activity.STRENGTH,
-                'duration_minutes': 45,
-                'distance_km': None,
-                'calories_burned': 260,
-                'notes': 'Strength training circuit.',
-            },
-            {
-                'user': users['student2'],
-                'activity_type': Activity.WALKING,
-                'duration_minutes': 35,
-                'distance_km': 3.2,
-                'calories_burned': 180,
-                'notes': 'Evening walk with friends.',
-            },
-            {
-                'user': users['student2'],
-                'activity_type': Activity.YOGA,
-                'duration_minutes': 40,
-                'distance_km': None,
-                'calories_burned': 140,
-                'notes': 'Relaxing yoga session.',
-            },
-        ]
-
-        for activity_data in activities:
-            Activity.objects.get_or_create(
-                user=activity_data['user'],
-                activity_type=activity_data['activity_type'],
-                duration_minutes=activity_data['duration_minutes'],
-                notes=activity_data['notes'],
-                defaults={
-                    'distance_km': activity_data['distance_km'],
-                    'calories_burned': activity_data['calories_burned'],
-                },
-            )
-
-        Workout.objects.get_or_create(
-            name='Full Body Circuit',
-            defaults={
-                'description': 'A full-body workout that blends strength and cardio.',
-                'difficulty': Workout.MEDIUM,
-                'recommended_activity': Activity.STRENGTH,
-                'duration_minutes': 40,
-            },
+        # Create activities
+        self.stdout.write('Creating activities...')
+        Activity.objects.create(
+            user=users['tony_stark'],
+            activity_type=Activity.RUNNING,
+            duration_minutes=30,
+            distance_km=5.0,
+            calories_burned=300
         )
-        Workout.objects.get_or_create(
-            name='Morning Cardio',
-            defaults={
-                'description': 'A light cardio routine for daily energy.',
-                'difficulty': Workout.LOW,
-                'recommended_activity': Activity.WALKING,
-                'duration_minutes': 30,
-            },
+        Activity.objects.create(
+            user=users['steve_rogers'],
+            activity_type=Activity.STRENGTH,
+            duration_minutes=45,
+            calories_burned=250
         )
+        Activity.objects.create(
+            user=users['bruce_wayne'],
+            activity_type=Activity.YOGA,
+            duration_minutes=60,
+            calories_burned=150
+        )
+        Activity.objects.create(
+            user=users['clark_kent'],
+            activity_type=Activity.WALKING,
+            duration_minutes=20,
+            distance_km=2.5,
+            calories_burned=100
+        )
+        self.stdout.write(f'Created {Activity.objects.count()} activities.')
 
-        for user in users.values():
-            profile = getattr(user, 'profile', None)
-            if profile:
-                profile.refresh_total_points()
+        # Create workouts
+        self.stdout.write('Creating workouts...')
+        workout1 = Workout.objects.create(
+            name='Morning Cardio Blast',
+            description='High-intensity cardio workout to start your day',
+            difficulty=Workout.HIGH,
+            recommended_activity=Activity.RUNNING,
+            duration_minutes=45
+        )
+        workout2 = Workout.objects.create(
+            name='Strength Training Basics',
+            description='Fundamental strength exercises for beginners',
+            difficulty=Workout.LOW,
+            recommended_activity=Activity.STRENGTH,
+            duration_minutes=30
+        )
+        workout3 = Workout.objects.create(
+            name='Relaxing Yoga Flow',
+            description='Gentle yoga sequence for stress relief',
+            difficulty=Workout.LOW,
+            recommended_activity=Activity.YOGA,
+            duration_minutes=60
+        )
+        workout4 = Workout.objects.create(
+            name='Evening Walk',
+            description='Leisurely walking workout for recovery',
+            difficulty=Workout.LOW,
+            recommended_activity=Activity.WALKING,
+            duration_minutes=30
+        )
+        self.stdout.write(f'Created {Workout.objects.count()} workouts.')
 
-        self.stdout.write(self.style.SUCCESS('Sample OctoFit Tracker data has been populated.'))
+        # Create workout suggestions
+        self.stdout.write('Creating workout suggestions...')
+        WorkoutSuggestion.objects.create(
+            user=users['tony_stark'],
+            workout=workout1,
+            suggested_date=date.today(),
+            reason='Based on your running activity pattern'
+        )
+        WorkoutSuggestion.objects.create(
+            user=users['steve_rogers'],
+            workout=workout2,
+            suggested_date=date.today() + timedelta(days=1),
+            reason='Recommended for strength training beginners'
+        )
+        WorkoutSuggestion.objects.create(
+            user=users['bruce_wayne'],
+            workout=workout3,
+            suggested_date=date.today(),
+            reason='Perfect for your yoga routine'
+        )
+        WorkoutSuggestion.objects.create(
+            user=users['clark_kent'],
+            workout=workout4,
+            suggested_date=date.today() + timedelta(days=2),
+            reason='Light activity to complement your walking'
+)

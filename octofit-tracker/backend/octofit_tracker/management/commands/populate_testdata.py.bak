@@ -1,0 +1,223 @@
+"""
+Management command to populate OctoFit Tracker with test data.
+"""
+from django.core.management.base import BaseCommand
+from django.contrib.auth import get_user_model
+from django.utils import timezone
+from datetime import date, timedelta
+from tracker.models import Team, Activity, Workout, WorkoutSuggestion
+
+User = get_user_model()
+
+class Command(BaseCommand):
+    help = 'Populates the OctoFit database with test data'
+
+    def handle(self, *args, **options):
+        self.stdout.write(self.style.SUCCESS('Starting to populate test data...'))
+
+        # Clear existing data
+        self.clear_data()
+
+        # Create test users
+        users = self.create_users()
+
+        # Create activities
+        self.create_activities(users)
+
+        # Create teams
+        teams = self.create_teams(users)
+
+        # Create workouts
+        workouts = self.create_workouts()
+
+        # Create workout suggestions
+        self.create_workout_suggestions(users, workouts)
+
+        self.stdout.write(self.style.SUCCESS('✓ Test data population completed successfully!'))
+
+    def clear_data(self):
+        """Clear existing test data."""
+        self.stdout.write('Clearing existing data...')
+        WorkoutSuggestion.objects.all().delete()
+        Activity.objects.all().delete()
+        Workout.objects.all().delete()
+        User.objects.filter(username__startswith='testuser').delete()  # Keep superuser
+        Team.objects.all().delete()
+        self.stdout.write('✓ Data cleared')
+
+    def create_users(self):
+        """Create test users."""
+        self.stdout.write('Creating test users...')
+        users = []
+        user_data = [
+            {'username': 'alice_fitness', 'email': 'alice@octofit.test', 'first_name': 'Alice', 'last_name': 'Johnson'},
+            {'username': 'bob_runner', 'email': 'bob@octofit.test', 'first_name': 'Bob', 'last_name': 'Smith'},
+            {'username': 'charlie_yoga', 'email': 'charlie@octofit.test', 'first_name': 'Charlie', 'last_name': 'Brown'},
+            {'username': 'diana_strength', 'email': 'diana@octofit.test', 'first_name': 'Diana', 'last_name': 'Wilson'},
+            {'username': 'evan_cardio', 'email': 'evan@octofit.test', 'first_name': 'Evan', 'last_name': 'Davis'},
+        ]
+
+        for user_info in user_data:
+            user = User.objects.create_user(
+                username=user_info['username'],
+                email=user_info['email'],
+                password='OctoFit@2024',
+                first_name=user_info['first_name'],
+                last_name=user_info['last_name']
+            )
+            users.append(user)
+            self.stdout.write(f'  ✓ Created user: {user.username}')
+
+        return users
+
+    def create_activities(self, users):
+        """Create test activities."""
+        self.stdout.write('Creating activities...')
+        activity_types = [Activity.RUNNING, Activity.WALKING, Activity.STRENGTH, Activity.YOGA]
+
+        for user in users:
+            # Create 3 activities for each user
+            for j in range(3):
+                activity = Activity.objects.create(
+                    user=user,
+                    activity_type=activity_types[j % len(activity_types)],
+                    duration_minutes=30 + (j * 15),
+                    distance_km=3.0 + (j * 2) if activity_types[j % len(activity_types)] in [Activity.RUNNING, Activity.WALKING] else None,
+                    calories_burned=200 + (j * 50),
+                    date=timezone.now() - timedelta(days=j)
+                )
+                self.stdout.write(f'  ✓ Created activity: {user.username} - {activity.activity_type} ({activity.duration_minutes}min)')
+
+    def create_teams(self, users):
+        """Create test teams."""
+        self.stdout.write('Creating teams...')
+
+        # Create team 1
+        team1 = Team.objects.create(
+            name='Morning Warriors',
+            description='Early risers who love morning workouts',
+        )
+        team1.captain = users[0]
+        team1.save()
+        team1.members.set(users[0:3])
+        self.stdout.write(f'  ✓ Created team: {team1.name} (Captain: {users[0].username})')
+
+        # Create team 2
+        team2 = Team.objects.create(
+            name='Weekend Athletes',
+            description='Fitness enthusiasts who train on weekends',
+        )
+        team2.captain = users[1]
+        team2.save()
+        team2.members.set(users[1:4])
+        self.stdout.write(f'  ✓ Created team: {team2.name} (Captain: {users[1].username})')
+
+        return [team1, team2]
+
+    def create_workouts(self):
+        """Create test workouts."""
+        self.stdout.write('Creating workouts...')
+        workouts = []
+
+        workout_data = [
+            {
+                'name': 'Morning Cardio Blast',
+                'description': 'High-intensity cardio workout to start your day',
+                'difficulty': Workout.HIGH,
+                'recommended_activity': Activity.RUNNING,
+                'duration_minutes': 45
+            },
+            {
+                'name': 'Strength Training Basics',
+                'description': 'Fundamental strength exercises for beginners',
+                'difficulty': Workout.LOW,
+                'recommended_activity': Activity.STRENGTH,
+                'duration_minutes': 30
+            },
+            {
+                'name': 'Relaxing Yoga Flow',
+                'description': 'Gentle yoga sequence for stress relief',
+                'difficulty': Workout.LOW,
+                'recommended_activity': Activity.YOGA,
+                'duration_minutes': 60
+            },
+            {
+                'name': 'Evening Walk',
+                'description': 'Leisurely walking workout for recovery',
+                'difficulty': Workout.LOW,
+                'recommended_activity': Activity.WALKING,
+                'duration_minutes': 30
+            }
+        ]
+
+        for workout_info in workout_data:
+            workout = Workout.objects.create(**workout_info)
+            workouts.append(workout)
+            self.stdout.write(f'  ✓ Created workout: {workout.name}')
+
+        return workouts
+
+    def create_workout_suggestions(self, users, workouts):
+        """Create workout suggestions."""
+        self.stdout.write('Creating workout suggestions...')
+
+        for i, user in enumerate(users):
+            # Create 2 suggestions per user
+            for j in range(2):
+                suggestion = WorkoutSuggestion.objects.create(
+                    user=user,
+                    workout=workouts[(i + j) % len(workouts)],
+                    suggested_date=date.today() + timedelta(days=j),
+                    reason=f'Personalized suggestion based on your activity pattern - Day {j+1}'
+                )
+                self.stdout.write(f'  ✓ Created suggestion: {user.username} - {suggestion.workout.name}')
+
+        self.stdout.write(self.style.SUCCESS('Sample OctoFit Tracker data has been populated.'))
+        """Create leaderboards and entries."""
+        self.stdout.write('Creating leaderboards...')
+        
+        # Create weekly leaderboard
+        leaderboard = Leaderboard.objects.create(
+            leaderboard_type='weekly',
+            period_start=date.today() - timedelta(days=7),
+            period_end=date.today(),
+            team=teams[0]
+        )
+        self.stdout.write(f'  ✓ Created leaderboard: {leaderboard.leaderboard_type}')
+
+        # Create entries for the leaderboard
+        for i, user in enumerate(users):
+            LeaderboardEntry.objects.create(
+                leaderboard=leaderboard,
+                user=user,
+                rank=i + 1,
+                total_points=500 - (i * 50),
+                total_distance_km=25.0 - (i * 2),
+                total_calories=2000 - (i * 200),
+                total_activities=5
+            )
+            self.stdout.write(f'  ✓ Created leaderboard entry for {user.username}')
+
+    def create_workout_suggestions(self, users):
+        """Create workout suggestions."""
+        self.stdout.write('Creating workout suggestions...')
+        suggestions = [
+            ('Morning Yoga', 'Start your day with a relaxing yoga session', 'yoga', 'beginner', 30),
+            ('HIIT Training', 'High intensity interval training for cardio', 'gym', 'advanced', 45),
+            ('Long Distance Run', 'Build your endurance with a longer run', 'running', 'intermediate', 60),
+            ('Swimming Workout', 'Low impact full body swimming session', 'swimming', 'intermediate', 45),
+            ('Cycling Tour', 'Enjoy a scenic cycling adventure', 'cycling', 'intermediate', 90),
+        ]
+
+        for i, user in enumerate(users):
+            suggestion_data = suggestions[i % len(suggestions)]
+            suggestion = WorkoutSuggestion.objects.create(
+                user=user,
+                title=suggestion_data[0],
+                description=suggestion_data[1],
+                suggested_activity_type=suggestion_data[2],
+                difficulty_level=suggestion_data[3],
+                estimated_duration_minutes=suggestion_data[4],
+                reason='Based on your fitness profile and activity history'
+            )
+            self.stdout.write(f'  ✓ Created suggestion for {user.username}: {suggestion.title}')

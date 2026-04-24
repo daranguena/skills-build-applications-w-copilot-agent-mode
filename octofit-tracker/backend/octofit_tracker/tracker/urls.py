@@ -7,6 +7,7 @@ from .views import (
     ProfileViewSet,
     TeamViewSet,
     UserViewSet,
+    WorkoutSuggestionViewSet,
     WorkoutViewSet,
 )
 
@@ -16,6 +17,7 @@ router.register(r'profiles', ProfileViewSet, basename='profile')
 router.register(r'teams', TeamViewSet, basename='team')
 router.register(r'activities', ActivityViewSet, basename='activity')
 router.register(r'workouts', WorkoutViewSet, basename='workout')
+router.register(r'workout-suggestions', WorkoutSuggestionViewSet, basename='workout-suggestion')
 
 urlpatterns = [
     path('', include(router.urls)),

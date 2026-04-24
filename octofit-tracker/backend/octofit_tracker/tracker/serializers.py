@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from .models import Activity, Profile, Team, Workout
+from .models import Activity, Profile, Team, Workout, WorkoutSuggestion
 
 
 User = get_user_model()
@@ -119,6 +119,31 @@ class WorkoutSerializer(serializers.ModelSerializer):
             'created_at',
         ]
         read_only_fields = ['id', 'created_at']
+
+
+class WorkoutSuggestionSerializer(serializers.ModelSerializer):
+    workout = WorkoutSerializer(read_only=True)
+    workout_id = serializers.PrimaryKeyRelatedField(
+        queryset=Workout.objects.all(),
+        source='workout',
+        write_only=True,
+    )
+    suggested_date = serializers.DateField()
+
+    class Meta:
+        model = WorkoutSuggestion
+        fields = [
+            'id',
+            'user',
+            'workout',
+            'workout_id',
+            'suggested_date',
+            'status',
+            'reason',
+            'completed_at',
+            'created_at',
+        ]
+        read_only_fields = ['id', 'user', 'completed_at', 'created_at']
 
 
 class LeaderboardEntrySerializer(serializers.Serializer):

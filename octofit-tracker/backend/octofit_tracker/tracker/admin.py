@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Activity, Profile, Team, Workout
+from .models import Activity, Profile, Team, Workout, WorkoutSuggestion
 
 
 @admin.register(Profile)
@@ -26,9 +26,13 @@ class WorkoutAdmin(admin.ModelAdmin):
     list_filter = ('difficulty', 'recommended_activity')
 
 
-@admin.register(Activity)
-class ActivityAdmin(admin.ModelAdmin):
-    list_display = ('user', 'activity_type', 'duration_minutes', 'distance_km', 'points', 'date')
-    search_fields = ('user__username', 'activity_type', 'notes')
-    list_filter = ('activity_type', 'date')
-    list_select_related = ('user',)
+@admin.register(WorkoutSuggestion)
+class WorkoutSuggestionAdmin(admin.ModelAdmin):
+    list_display = ('user', 'workout', 'suggested_date', 'status', 'completed_at')
+    list_filter = ('status', 'suggested_date', 'workout__difficulty')
+    search_fields = ('user__username', 'workout__name')
+    readonly_fields = ('completed_at',)
+    list_select_related = ('user', 'workout')
+
+    def get_queryset(self, request):
+        return super().get_queryset(request).select_related('user', 'workout')
