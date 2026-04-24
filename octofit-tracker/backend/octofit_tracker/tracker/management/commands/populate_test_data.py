@@ -10,6 +10,13 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         User = get_user_model()
 
+        # Clear existing sample data so object IDs stay consistent with Django's integer PK expectations.
+        sample_usernames = ['student1', 'student2', 'coach']
+        User.objects.filter(username__in=sample_usernames).delete()
+        Team.objects.filter(name__in=['Team Octo', 'Team Hydra']).delete()
+        Activity.objects.all().delete()
+        Workout.objects.filter(name__in=['Full Body Circuit', 'Morning Cardio']).delete()
+
         sample_users = [
             {
                 'username': 'student1',

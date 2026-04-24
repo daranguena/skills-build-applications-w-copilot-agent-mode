@@ -24,6 +24,14 @@ class TrackerApiTests(TestCase):
         self.user.profile.team = self.team
         self.user.profile.save()
 
+    def test_user_list_api_returns_created_user(self):
+        response = self.client.get('/api/users/')
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertGreaterEqual(len(data), 1)
+        self.assertEqual(data[0]['username'], self.user.username)
+        self.assertEqual(data[0]['email'], self.user.email)
+
     def test_create_activity_updates_profile_points(self):
         payload = {
             'activity_type': 'running',
@@ -38,6 +46,17 @@ class TrackerApiTests(TestCase):
         self.assertEqual(activity.points, 30 * 5 + 50)
         self.user.profile.refresh_from_db()
         self.assertEqual(self.user.profile.total_points, activity.points)
+
+    def test_team_create_sets_captain_and_team_membership(self):
+        payload = {
+            'name': 'Team Hydra',
+            'description': 'New student team',
+        }
+        response = self.client.post('/api/teams/', payload, format='json')
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()['captain']['username'], self.user.username)
+        self.user.profile.refresh_from_db()
+        self.assertEqual(self.user.profile.team.name, 'Team Hydra')
 
     def test_leaderboard_endpoint_returns_user_and_team_rankings(self):
         Activity.objects.create(

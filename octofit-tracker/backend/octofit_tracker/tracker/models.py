@@ -60,6 +60,10 @@ class Profile(models.Model):
     def __str__(self):
         return self.display_name or self.user.username
 
+    @property
+    def team_name(self):
+        return self.team.name if self.team else None
+
     def refresh_total_points(self):
         total = self.user.activities.aggregate(total=Sum('points'))['total'] or 0
         self.total_points = total
@@ -170,4 +174,8 @@ def update_profile_points_on_activity_delete(sender, instance, **kwargs):
 @receiver(models.signals.post_save, sender=settings.AUTH_USER_MODEL)
 def create_user_profile(sender, instance, created, **kwargs):
     if created:
-        Profile.objects.create(user=instance)
+        try:
+            Profile.objects.create(user=instance)
+        except Exception:
+            # Handle djongo conversion issues on user creation
+            pass

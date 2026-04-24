@@ -1,6 +1,6 @@
-from django.db.models import Count, Sum
-from django.shortcuts import get_object_or_404
-from rest_framework import permissions, status, viewsets
+from django.contrib.auth import get_user_model
+from django.db.models import Count, Q, Sum
+from rest_framework import permissions, viewsets
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -11,8 +11,18 @@ from .serializers import (
     ProfileSerializer,
     TeamLeaderboardSerializer,
     TeamSerializer,
+    UserSerializer,
     WorkoutSerializer,
 )
+
+
+User = get_user_model()
+
+
+class UserViewSet(viewsets.ReadOnlyModelViewSet):
+    queryset = User.objects.filter(is_active=True).all()
+    serializer_class = UserSerializer
+    permission_classes = [permissions.AllowAny]
 
 
 class ProfileViewSet(viewsets.ModelViewSet):
@@ -36,12 +46,17 @@ class TeamViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.IsAuthenticatedOrReadOnly]
 
     def perform_create(self, serializer):
-        serializer.save(captain=self.request.user)
+        team = serializer.save(captain=self.request.user)
+        if hasattr(self.request.user, 'profile'):
+            self.request.user.profile.team = team
+            self.request.user.profile.save(update_fields=['team'])
 
     def get_queryset(self):
         queryset = super().get_queryset()
         if self.request.user.is_authenticated and not self.request.user.is_staff:
-            return queryset.filter(members__user=self.request.user).distinct()
+            return queryset.filter(
+                Q(members__user=self.request.user) | Q(captain=self.request.user)
+            ).distinct()
         return queryset
 
 

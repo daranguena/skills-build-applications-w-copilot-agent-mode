@@ -7,17 +7,31 @@ from .models import Activity, Profile, Team, Workout
 User = get_user_model()
 
 
+class UserProfileSerializer(serializers.ModelSerializer):
+    team_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Profile
+        fields = ['id', 'display_name', 'team_name']
+
+    def get_team_name(self, obj):
+        return obj.team.name if obj.team else None
+
+
 class UserSerializer(serializers.ModelSerializer):
+    profile = UserProfileSerializer(read_only=True)
+
     class Meta:
         model = User
-        fields = ['id', 'username', 'email']
-        read_only_fields = ['id', 'username', 'email']
+        fields = ['id', 'username', 'email', 'profile']
+        read_only_fields = ['id', 'username', 'email', 'profile']
 
 
 class TeamSerializer(serializers.ModelSerializer):
     captain = UserSerializer(read_only=True)
     member_count = serializers.IntegerField(read_only=True)
     total_points = serializers.SerializerMethodField()
+    members = serializers.SerializerMethodField(read_only=True)
 
     class Meta:
         model = Team
@@ -28,12 +42,24 @@ class TeamSerializer(serializers.ModelSerializer):
             'captain',
             'member_count',
             'total_points',
+            'members',
             'created_at',
         ]
-        read_only_fields = ['id', 'captain', 'member_count', 'total_points', 'created_at']
+        read_only_fields = ['id', 'captain', 'member_count', 'total_points', 'members', 'created_at']
 
     def get_total_points(self, obj):
         return getattr(obj, 'points_total', None) or obj.points_total
+
+    def get_members(self, obj):
+        return [
+            {
+                'id': profile.id,
+                'display_name': profile.display_name or profile.user.username,
+                'username': profile.user.username,
+                'team_name': profile.team.name if profile.team else None,
+            }
+            for profile in obj.members.all()
+        ]
 
 
 class ProfileSerializer(serializers.ModelSerializer):

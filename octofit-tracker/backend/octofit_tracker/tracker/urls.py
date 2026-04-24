@@ -6,10 +6,12 @@ from .views import (
     LeaderboardView,
     ProfileViewSet,
     TeamViewSet,
+    UserViewSet,
     WorkoutViewSet,
 )
 
 router = DefaultRouter()
+router.register(r'users', UserViewSet, basename='user')
 router.register(r'profiles', ProfileViewSet, basename='profile')
 router.register(r'teams', TeamViewSet, basename='team')
 router.register(r'activities', ActivityViewSet, basename='activity')
